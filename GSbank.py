@@ -1,6 +1,6 @@
 import random
-hello=1
-bank = {'1':{'username':'fpf','password':'123456','money':10000}}
+import pymysql
+from day1.mode import select,updata
 bank_name = '工商银行狼腾分行'
 def isint(x):
     if str.isdigit(x):
@@ -29,62 +29,59 @@ def home():
         giveMoney_user()
     elif num == '5':
         searchUser()
-    elif num == '6':
-        return 0
-    return isint(num)
+    # elif num == '6':
+    #     return 0
 def giveMoney_user():
     userid = input('请输入你的账号:')
     userpsw = input('请输入你的密码:')
     yourid = input('请输入对方账号:')
-    money = int(input('请输入转账金额:'))
+    money = isint((input('请输入转账金额:')))
     giveMoney(userid,userpsw,yourid,money)
 def giveMoney(userid,userpsw,yourid,money):
-    if userid in bank and yourid in bank and userpsw == bank[userid]['password'] and money <= bank[userid]['money']:
-        bank[userid]['money'] -= money
-        bank[yourid]['money'] += money
-        print('转账成功！',bank[userid]['money'],bank[yourid]['money'])
-    elif userid not in bank or yourid not in bank:
-        print('账户不存在!')
-        return 1
-    elif userid in bank and bank[userid]['password'] != userpsw:
-        print('您的密码错误!')
-        return 2
-    elif userid and yourid in bank and money > bank[userid]['money']:
-        print('您的余额不足!')
-        return 3
+    if len(select('select userid from add_bank where userid = %s and passwrod = %s',[userid,userpsw])) != 0:
+        if len(select('select userid from add_bank where userid = %s',yourid)) != 0:
+            bank_msg = select('select * from add_bank where userid = %s or userid = %s',[userid,yourid])
+            if bank_msg[0][4] >= money:
+                new_money = bank_msg[0][4] - money
+                updata('update add_bank set money = %s where userid = %s',[new_money,userid])
+                new_money = bank_msg[1][4] + money
+                updata('update add_bank set money = %s where userid = %s',[new_money,yourid])
+                return
+            else:
+                print('您的余额不足')
+                return
+        else:
+            print('对方账号不存在')
+            return
+    else:
+        print('您的账号或密码错误!')
+        return
 def searchUser():
     userid = input('请输入账号:')
     password = input('请输入密码:')
     search(userid,password)
 def search(userid,password):
-    if userid in bank:
-        if password == bank[userid]['password']:
-            str1 = '''
-                账号:%s
-                密码:******
-                余额:%s
-                地址:%s
-                开户行:%s
-            '''
-            print(str1 %(bank[userid]['userid'],bank[userid]['money'],bank[userid]['local'],bank[userid]['bank']))
-        elif password != bank[userid]['password']:
-            print('密码错误!')
-    elif userid not in bank:
-        print('账号不存在!')
-def adduser_to_bank(userid,username,password,local,money,bankname):
-    if userid in bank:
-        userid = random.randint(10000000,100000000)
-    elif len(bank) > 100:
-        print('银行信息已满！')
+    if len(select('select * from add_bank where userid = %s and passwrod = %s',[userid,password])) != 0:
+        str1 = '''
+            账号:%s
+            密码:******
+            余额:%s
+            地址:%s
+            开户行:%s
+        '''
+        bank_msg = select('select * from add_bank where userid = %s',userid)
+        print(str1,[bank_msg[0][0],bank_msg[0][4],bank_msg[0][3],bank_msg[0][5]])
     else:
-        bank[userid] = {
-            'userid':userid,
-            'username':username,
-            'password':password,
-            'local':local,
-            'money':money,
-            'bank':bankname
-        }
+        print('账号或密码错误!')
+def adduser_to_bank(userid,username,password,local,money,bankname):
+    if select('select userid from add_bank where userid = %s',userid) != 0:
+        userid = random.randint(10000000,100000000)
+    if len(select('select userid from add_bank',[])) >= 100:
+        print('用户已满!')
+        return
+    else:
+        updata('insert into add_bank values(%s,%s,%s,%s,%s,%s)',[userid,username,password,local,money,bankname])
+        return
 def adduser():
     username = input('请输入您的姓名:')
     password = input('请输入您的密码:')
@@ -101,45 +98,42 @@ def adduser():
         userid = str(userid)
         bankname = bank_name
         adduser_to_bank(userid,username,password,local,money,bankname)
-        print(userid,bank)
         return 3
 def save_money_user():
     username = input('请输入账号:')
     password = input('请输入密码:')
     money = isint(input('请输入存入金额:'))
-    save_money(username,password,money)
+    if money == 0:
+        print('请输入正确的金额')
+    else:
+        save_money(username,password,money)
 def save_money(username,password,money):
-    if username in bank:
-        if password == bank[username]['password']:
-            bank[username]['money']+=money
-            print('您的账户余额为',bank[username]['money'],'元')
-            return 1
-        else:
-            print('密码错误!')
+    if len(select('select userid from add_bank where userid = %s and passwrod = %s',[username,password])) != 0:
+        moneys = select('select money from add_bank where userid = %s',username)
+        money = moneys[0][0] + money
+        updata('update add_bank set money = %s where userid = %s',[money,username])
     else:
-        print('用户不存在或错误!')
+        print('账号或密码错误!')
 def draw_money(username,password,money):
-    if username in bank:
-        if password == bank[username]['password']:
-            if money <= bank[username]['money']:
-                bank[username]['money'] -= money
-                print(bank)
-            else:
-                print('您的余额不足！')
-                return 3
+    if len(select('select * from add_bank where userid = %s and passwrod = %s',[username,password])) != 0:
+        bank_msg = select('select * from add_bank where userid = %s and passwrod = %s',[username,password])
+        if money <= bank_msg[0][4]:
+            money = bank_msg[0][4] - money
+            updata('update add_bank set money = %s where userid = %s',[money,username])
+            return
         else:
-            print('您的密码错误!')
-            return 2
+            print('您的余额不足')
+            return
     else:
-        print('用户不存在!')
-        return 1
+        print('您的账号或密码错误')
+        return
 def draw_money_user():
     username = input('请输入账号:')
     password = input('请输入密码:')
     money = int(input('请输入您的去取出的金额:'))
     draw_money(username,password,money)
-while hello:
-    hello = home()
+while True:
+    home()
 
 
 
